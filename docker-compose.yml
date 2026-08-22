@@ -1,87 +1,292 @@
+version: "3.9"
+
+x-netbox-common: &netbox-common
+  image: ${NETBOX_IMAGE:-scada/netbox-nbxsync:4.6-5.0.2-nbxsync-1.0.5}
+
+  user: "netbox:root"
+
+  env_file:
+    - env/netbox.env
+
+  volumes:
+    - netbox-media-files:/opt/netbox/netbox/media:rw
+    - netbox-reports-files:/opt/netbox/netbox/reports:rw
+    - netbox-scripts-files:/opt/netbox/netbox/scripts:rw
+
+  networks:
+    - netbox-internal
+
 services:
-  netbox: &netbox
-    image: docker.io/netboxcommunity/netbox:${VERSION-v4.6-5.0.2}
-    depends_on:
-      - postgres
-      - redis
-      - redis-cache
-    env_file: env/netbox.env
-    user: "netbox:root"
+  netbox:
+    <<: *netbox-common
+
+    networks:
+      - netbox-internal
+      - traefik-public
+      - scada-integration
+
     healthcheck:
-      test: curl -f http://localhost:8080/login/ || exit 1
-      start_period: 90s
-      timeout: 3s
+      test:
+        - CMD-SHELL
+        - curl -fsS http://localhost:8080/login/ >/dev/null || exit 1
+      start_period: 120s
       interval: 15s
-    volumes:
-      - ./configuration:/etc/netbox/config:z,ro
-      - netbox-media-files:/opt/netbox/netbox/media:rw
-      - netbox-reports-files:/opt/netbox/netbox/reports:rw
-      - netbox-scripts-files:/opt/netbox/netbox/scripts:rw
+      timeout: 5s
+      retries: 10
+
+    deploy:
+      replicas: 1
+
+      placement:
+        constraints:
+          - node.hostname == ersan
+
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 10
+        window: 180s
+
+      update_config:
+        parallelism: 1
+        order: stop-first
+        delay: 10s
+        failure_action: rollback
+        monitor: 60s
+
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+        monitor: 60s
+
+    labels:
+      # Traefik ile NetBox'ın ortak external overlay ağı
+#        - "traefik.swarm.network=traefik-public"
+      - traefik.enable=true
+      # NetBox HTTPS router
+      - traefik.http.routers.netbox.rule=Host(`netbox.scada.local`) || Host(`127.0.0.1`)
+      - traefik.http.routers.netbox.entrypoints=websecure
+      - traefik.http.routers.netbox.tls=true
+      - traefik.http.routers.netbox.tls.certresolver=staging
+      - traefik.http.routers.netbox.service=netbox-service
+
+      # NetBox container iç portu
+      - traefik.http.services.netbox-service.loadbalancer.server.port=8080
+      - traefik.http.services.netbox-service.loadbalancer.server.scheme=http
+      - traefik.http.services.netbox-service.loadbalancer.passhostheader=true
+
+      # NetBox'a HTTPS üzerinden gelindiğini bildir
+      - traefik.http.middlewares.netbox-forwarded.headers.customrequestheaders.X-Forwarded-Proto=https
+      - traefik.http.routers.netbox.middlewares=netbox-forwarded
+
   netbox-worker:
-    <<: *netbox
-    depends_on:
-      netbox:
-        condition: service_healthy
+    image: ${NETBOX_IMAGE:-scada/netbox-nbxsync:4.6-5.0.2-nbxsync-1.0.5}
+
+    user: "netbox:root"
+
+    env_file:
+      - env/netbox.env
+
     command:
       - /opt/netbox/venv/bin/python
       - /opt/netbox/netbox/manage.py
       - rqworker
-    healthcheck:
-      test: ps -aux | grep -v grep | grep -q rqworker || exit 1
-      start_period: 20s
-      timeout: 3s
-      interval: 15s
 
-  # postgres
-  postgres:
-    image: docker.io/postgres:18-alpine
+    volumes:
+      - netbox-media-files:/opt/netbox/netbox/media:rw
+      - netbox-reports-files:/opt/netbox/netbox/reports:rw
+      - netbox-scripts-files:/opt/netbox/netbox/scripts:rw
+
+    networks:
+      - netbox-internal
+      - scada-integration
+
     healthcheck:
-      test: pg_isready -q -t 2 -d $$POSTGRES_DB -U $$POSTGRES_USER
-      start_period: 20s
-      timeout: 30s
-      interval: 10s
-      retries: 5
-    env_file: env/postgres.env
+      test:
+        - CMD-SHELL
+        - ps -aux | grep -v grep | grep -q '[r]qworker' || exit 1
+      start_period: 45s
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+    deploy:
+      replicas: ${NETBOX_WORKER_REPLICAS:-1}
+
+      placement:
+        constraints:
+          - node.hostname == ersan
+
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 10
+        window: 180s
+
+      update_config:
+        parallelism: 1
+        order: stop-first
+        delay: 10s
+        failure_action: rollback
+        monitor: 60s
+
+  postgres:
+    image: ${POSTGRES_IMAGE:-docker.io/postgres:18-alpine}
+
+    env_file:
+      - env/postgres.env
+
     volumes:
       - netbox-postgres:/var/lib/postgresql
 
-  # redis
+    networks:
+      - netbox-internal
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -q -t 2 -d "$${POSTGRES_DB}" -U "$${POSTGRES_USER}"
+      start_period: 30s
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+    deploy:
+      replicas: 1
+
+      placement:
+        constraints:
+          - node.hostname == ersan
+
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 10
+        window: 120s
+
+      update_config:
+        parallelism: 1
+        order: stop-first
+
   redis:
-    image: docker.io/valkey/valkey:9.1-alpine
+    image: ${VALKEY_IMAGE:-docker.io/valkey/valkey:9.1-alpine}
+
+    env_file:
+      - env/redis.env
+
     command:
       - sh
-      - -c # this is to evaluate the $REDIS_PASSWORD from the env
-      - valkey-server --appendonly yes --requirepass $$REDIS_PASSWORD ## $$ because of docker-compose
-    healthcheck: &redis-healthcheck
-      test: '[ $$(valkey-cli --pass "$${REDIS_PASSWORD}" ping) = ''PONG'' ]'
-      start_period: 5s
-      timeout: 3s
-      interval: 1s
-      retries: 5
-    env_file: env/redis.env
+      - -ec
+      - >
+        exec valkey-server
+        --appendonly yes
+        --requirepass "$${REDIS_PASSWORD}"
+
     volumes:
       - netbox-redis-data:/data
+
+    networks:
+      - netbox-internal
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - valkey-cli --pass "$${REDIS_PASSWORD}" ping | grep -q PONG
+      start_period: 10s
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+    deploy:
+      replicas: 1
+
+      placement:
+        constraints:
+          - node.hostname == ersan
+
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 10
+        window: 60s
+
+      update_config:
+        parallelism: 1
+        order: stop-first
+
   redis-cache:
-    image: docker.io/valkey/valkey:9.1-alpine
+    image: ${VALKEY_IMAGE:-docker.io/valkey/valkey:9.1-alpine}
+
+    env_file:
+      - env/redis-cache.env
+
     command:
       - sh
-      - -c # this is to evaluate the $REDIS_PASSWORD from the env
-      - valkey-server --requirepass $$REDIS_PASSWORD ## $$ because of docker-compose
-    healthcheck: *redis-healthcheck
-    env_file: env/redis-cache.env
+      - -ec
+      - >
+        exec valkey-server
+        --save ""
+        --appendonly no
+        --requirepass "$${REDIS_PASSWORD}"
+
     volumes:
       - netbox-redis-cache-data:/data
+
+    networks:
+      - netbox-internal
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - valkey-cli --pass "$${REDIS_PASSWORD}" ping | grep -q PONG
+      start_period: 10s
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+    deploy:
+      replicas: 1
+
+      placement:
+        constraints:
+          - node.hostname == ersan
+
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 10
+        window: 60s
+
+      update_config:
+        parallelism: 1
+        order: stop-first
 
 volumes:
   netbox-media-files:
     driver: local
+
   netbox-postgres:
     driver: local
+
   netbox-redis-cache-data:
     driver: local
+
   netbox-redis-data:
     driver: local
+
   netbox-reports-files:
     driver: local
+
   netbox-scripts-files:
     driver: local
+
+networks:
+  netbox-internal:
+    driver: overlay
+    attachable: false
+
+  traefik-public:
+    external: true
+
+  scada-integration:
+    external: true
