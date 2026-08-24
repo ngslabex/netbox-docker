@@ -1,4 +1,11 @@
-PLUGINS = ["nbxsync"]
+PLUGINS = ["nbxsync",
+           "netbox_ipcalculator",
+           "netbox_topology_views",
+           "netbox_documents",
+           "netbox_data_flows",
+           "netbox_acls",
+           "netbox_lifecycle",
+           "netbox_inventory"]
 
 PLUGINS_CONFIG = {
     "nbxsync": {
@@ -88,5 +95,49 @@ PLUGINS_CONFIG = {
 
         "custom_field_hostname": "",
         "custom_field_display_name": "",
+    },
+    "netbox_ipcalculator": {},
+    "netbox_topology_views": {
+        'static_image_directory': 'netbox_topology_views/img',
+        'allow_coordinates_saving': True,
+        'always_save_coordinates': True
+    },
+    "netbox_documents": {
+
+        # Enable the global navigation menu
+        'enable_navigation_menu': True,
+
+        # Location of the documents panel on object detail pages (left/right)
+        'documents_location': 'left',
+
+        # Custom document types (see below)
+        'custom_doc_types': [],
+
+        # Per-model document type filtering (see below)
+        'allowed_doc_types': {},
+    },
+    "netbox_data_flows": {
+        # Create a menu section for the plugin
+        'top_level_menu': True,
+        # Use a Custom Field to identify objects linked to an application
+        'application_custom_field': "application",
+    },
+    "netbox_acls": {
+        # Set to True to add a top-level menu item, or False to place it
+        # under the Plugins menu. Default is True.
+        "top_level_menu": True,
+        # Sequence number increment for new ACL rules (e.g., 10, 20, 30...)
+        "rule_sequence_step": 10,
+    },
+    "netbox_lifecycle": {
+        'lifecycle_card_position': 'right_page',
+        'contract_card_position': 'right_page',
+    },
+    "netbox_inventory": {
+        # Example settings below, see "Available settings"
+        # in README.md for all possible settings
+        "used_status_name": "used",
+        "stored_status_name": "stored",
+        "sync_hardware_serial_asset_tag": True,
     }
 }

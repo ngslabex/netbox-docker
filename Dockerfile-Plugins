@@ -10,6 +10,8 @@ RUN /usr/local/bin/uv pip install \
     --python /opt/netbox/venv/bin/python \
     -r /opt/netbox/plugin_requirements.txt
 
+RUN mkdir -p /opt/netbox/netbox/static/netbox_topology_views/img
+
 COPY configuration/plugins.py /etc/netbox/config/plugins.py
 
 RUN DEBUG="true" \

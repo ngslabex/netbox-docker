@@ -1,7 +1,7 @@
 version: "3.9"
 
 x-netbox-common: &netbox-common
-  image: ${NETBOX_IMAGE:-scada/netbox-nbxsync:4.6-5.0.2-nbxsync-1.0.5}
+  image: ${NETBOX_IMAGE:-scada/netbox-plugins:03}
 
   user: "netbox:root"
 
@@ -80,7 +80,7 @@ services:
       - traefik.http.routers.netbox.middlewares=netbox-forwarded
 
   netbox-worker:
-    image: ${NETBOX_IMAGE:-scada/netbox-nbxsync:4.6-5.0.2-nbxsync-1.0.5}
+    image: ${NETBOX_IMAGE:-scada/netbox-plugins:03}
 
     user: "netbox:root"
 
