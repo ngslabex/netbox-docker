@@ -2,22 +2,44 @@ ARG NETBOX_BASE_IMAGE=docker.io/netboxcommunity/netbox:v4.6-5.0.2
 
 FROM ${NETBOX_BASE_IMAGE}
 
+ARG NETBOX_MAP_OFFLINE_STYLE=basic-preview
+ARG NETBOX_MAP_OFFLINE_TILE_BASE_URL=https://maps.scada.local
+
 USER root
 
-COPY plugin_requirements.txt /opt/netbox/plugin_requirements.txt
+COPY plugin_requirements.txt \
+    /opt/netbox/plugin_requirements.txt
 
 RUN /usr/local/bin/uv pip install \
     --python /opt/netbox/venv/bin/python \
     -r /opt/netbox/plugin_requirements.txt
 
-RUN mkdir -p /opt/netbox/netbox/static/netbox_topology_views/img
+RUN mkdir -p \
+    /opt/netbox/netbox/static/netbox_topology_views/img
 
-COPY configuration/plugins.py /etc/netbox/config/plugins.py
+COPY configuration/plugins.py \
+    /etc/netbox/config/plugins.py
+
+COPY patches/patch_netbox_map_offline.py \
+    /tmp/patch_netbox_map_offline.py
+
+RUN NETBOX_MAP_OFFLINE_STYLE="${NETBOX_MAP_OFFLINE_STYLE}" \
+    NETBOX_MAP_OFFLINE_TILE_BASE_URL="${NETBOX_MAP_OFFLINE_TILE_BASE_URL}" \
+    /opt/netbox/venv/bin/python \
+    /tmp/patch_netbox_map_offline.py
+
+RUN DEBUG="true" \
+    SECRET_KEY="dummydummydummydummydummydummydummydummydummydummy" \
+    /opt/netbox/venv/bin/python \
+    /opt/netbox/netbox/manage.py check
 
 RUN DEBUG="true" \
     SECRET_KEY="dummydummydummydummydummydummydummydummydummydummy" \
     /opt/netbox/venv/bin/python \
     /opt/netbox/netbox/manage.py collectstatic \
     --no-input
+
+RUN rm -f \
+    /tmp/patch_netbox_map_offline.py
 
 USER netbox

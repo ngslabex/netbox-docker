@@ -54,3 +54,29 @@
 # from datetime import datetime
 # now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 # BANNER_TOP = f'<marquee width="200px">This instance started on {now}.</marquee>'
+
+# BEGIN SCADA LOCAL SETTINGS
+
+# Türkiye yerel saat dilimi.
+TIME_ZONE = "Europe/Istanbul"
+
+# NetBox Site ve Device Map düğmelerini yerel NetBox Map
+# pluginine yönlendirir.
+MAPS_URL = (
+    "https://netbox.scada.local/"
+    "plugins/map/sitemap/?q="
+)
+
+# İnternet erişimine bağlı NetBox fonksiyonlarını devre dışı bırakır.
+ISOLATED_DEPLOYMENT = True
+
+# İzole ortamda kullanılmayan dış Copilot özelliğini kapatır.
+COPILOT_ENABLED = False
+
+# GitHub üzerinden NetBox sürüm kontrolünü kapatır.
+RELEASE_CHECK_URL = None
+
+# Primary IP seçiminde IPv4 adresini tercih eder.
+PREFER_IPV4 = True
+
+# END SCADA LOCAL SETTINGS

@@ -6,3 +6,4 @@ netbox_data_flows==1.5.3
 netbox_acls==2.0.2
 netbox_lifecycle==1.1.9
 netbox_inventory==2.6.1
+netbox-map==0.12.0

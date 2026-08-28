@@ -5,7 +5,8 @@ PLUGINS = ["nbxsync",
            "netbox_data_flows",
            "netbox_acls",
            "netbox_lifecycle",
-           "netbox_inventory"]
+           "netbox_inventory",
+           "netbox_map"]
 
 PLUGINS_CONFIG = {
     "nbxsync": {
@@ -139,5 +140,6 @@ PLUGINS_CONFIG = {
         "used_status_name": "used",
         "stored_status_name": "stored",
         "sync_hardware_serial_asset_tag": True,
-    }
+    },
+    "netbox_map": {},
 }
