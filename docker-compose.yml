@@ -169,7 +169,7 @@ services:
         order: stop-first
 
   redis:
-    image: ${VALKEY_IMAGE:-docker.io/valkey/valkey:9.1-alpine}
+    image: ${VALKEY_IMAGE:-docker.io/valkey/valkey:9.1.2-alpine}
 
     env_file:
       - env/redis.env
@@ -180,6 +180,7 @@ services:
       - >
         exec valkey-server
         --appendonly yes
+        --appendfsync everysec
         --requirepass "$${REDIS_PASSWORD}"
 
     volumes:
@@ -191,7 +192,7 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - valkey-cli --pass "$${REDIS_PASSWORD}" ping | grep -q PONG
+        - 'VALKEYCLI_AUTH=$$REDIS_PASSWORD valkey-cli ping | grep -qx PONG'
       start_period: 10s
       interval: 5s
       timeout: 3s
@@ -206,16 +207,17 @@ services:
 
       restart_policy:
         condition: on-failure
-        delay: 5s
-        max_attempts: 10
-        window: 60s
+        delay: 10s
+        max_attempts: 5
+        window: 120s
 
       update_config:
         parallelism: 1
         order: stop-first
+        failure_action: rollback
 
   redis-cache:
-    image: ${VALKEY_IMAGE:-docker.io/valkey/valkey:9.1-alpine}
+    image: ${VALKEY_IMAGE:-docker.io/valkey/valkey:9.1.2-alpine}
 
     env_file:
       - env/redis-cache.env
@@ -238,7 +240,7 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - valkey-cli --pass "$${REDIS_PASSWORD}" ping | grep -q PONG
+        - 'VALKEYCLI_AUTH=$$REDIS_PASSWORD valkey-cli ping | grep -qx PONG'
       start_period: 10s
       interval: 5s
       timeout: 3s
